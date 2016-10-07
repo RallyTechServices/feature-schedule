@@ -4,7 +4,7 @@
 
 This app requires a Release Scoped dashboard to run on.  
 
-For the selected release, this app will show all PortfolioItem Features (the lowest level PI) that are either associated directly with the selected release or have stories associated directly with the selected Release.  
+For the selected release, this app will show all PortfolioItem Features (or whatever the lowest level PI is) that are either associated directly with the selected release or have stories associated directly with the selected Release.  
 
 The additional columns shown in the app are:
 #####Latest Iteration End Date
