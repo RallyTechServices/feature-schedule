@@ -7,8 +7,12 @@ This app requires a Release Scoped dashboard to run on.
 For the selected release, this app will show all PortfolioItem Features (the lowest level PI) that are either associated directly with the selected release or have stories associated directly with the selected Release.  
 
 The additional columns shown in the app are:
-*  Latest Iteration End Date - for all stories in the current project scope, the latest iteration end date across all of them.  
-*  Earliest Milestone Target Date - for all milestones associated with the features in the selected release, the earliest Target Date across all milestones for that feature.  
+#####Latest Iteration End Date
+For all stories in the current project scope, the latest iteration end date across all of them.
+If there is a story that belongs to the feature that is outside of the project scope, then the Iteration Date for that story will not be considered.  
+  
+#####Earliest Milestone Target Date 
+For milestones associated with each of the features in the selected release (or features that have stories in the selected release), the earliest Target Date across all milestones for that feature.  
 
 
 ## Development Notes

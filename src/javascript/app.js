@@ -17,6 +17,15 @@ Ext.define("feature-schedule", {
             this.showNoScopeMessage();
             return;
         }
+        this.fetchPortfolioItemTypes().then({
+            success: this.initializeApp,
+            failure: this.showErrorNotification,
+            scope: this
+        });
+
+    },
+    initializeApp: function(portfolioTypes){
+        this.portfolioItemTypeDefs = Ext.Array.map(portfolioTypes, function(p){ return p.getData();});
         this.onTimeboxScopeChange();
     },
     isTimeboxScoped: function(){
@@ -59,7 +68,29 @@ Ext.define("feature-schedule", {
         return this.getFeatureTypePath().replace('PortfolioItem/','');
     },
     getFeatureTypePath: function(){
-        return 'PortfolioItem/Feature';
+        return this.portfolioItemTypeDefs[0].TypePath;
+        //return 'PortfolioItem/Feature';
+    },
+    fetchPortfolioItemTypes: function(){
+        return this.fetchWsapiRecords({
+            model: 'TypeDefinition',
+            fetch: ['TypePath', 'Ordinal','Name'],
+            context: {workspace: this.getContext().getWorkspace()._ref},
+            filters: [{
+                property: 'Parent.Name',
+                operator: '=',
+                value: 'Portfolio Item'
+            },
+            {
+                property: 'Creatable',
+                operator: '=',
+                value: 'true'
+            }],
+            sorters: [{
+                property: 'Ordinal',
+                direction: 'ASC'
+            }]
+        });
     },
     fetchUserStories: function(timeboxScope){
         var timeboxRecord = timeboxScope && timeboxScope.getRecord(),

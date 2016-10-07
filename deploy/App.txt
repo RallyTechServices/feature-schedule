@@ -3,12 +3,12 @@
 <head>
     <title>Feature Schedule Report</title>
     <!--  (c) 2016 CA Technologies.  All Rights Reserved. -->
-    <!--  Build Date: Fri Oct 07 2016 10:59:07 GMT-0600 (MDT) -->
+    <!--  Build Date: Fri Oct 07 2016 11:13:56 GMT-0600 (MDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Fri Oct 07 2016 10:59:07 GMT-0600 (MDT)";
+        var APP_BUILD_DATE = "Fri Oct 07 2016 11:13:56 GMT-0600 (MDT)";
         var BUILDER = "kcorkan";
-        var CHECKSUM = 9143886095;
+        var CHECKSUM = 9999837849;
     </script>
     
     <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
@@ -267,6 +267,15 @@ Ext.define("feature-schedule", {
             this.showNoScopeMessage();
             return;
         }
+        this.fetchPortfolioItemTypes().then({
+            success: this.initializeApp,
+            failure: this.showErrorNotification,
+            scope: this
+        });
+
+    },
+    initializeApp: function(portfolioTypes){
+        this.portfolioItemTypeDefs = Ext.Array.map(portfolioTypes, function(p){ return p.getData();});
         this.onTimeboxScopeChange();
     },
     isTimeboxScoped: function(){
@@ -309,7 +318,29 @@ Ext.define("feature-schedule", {
         return this.getFeatureTypePath().replace('PortfolioItem/','');
     },
     getFeatureTypePath: function(){
-        return 'PortfolioItem/Feature';
+        return this.portfolioItemTypeDefs[0].TypePath;
+        //return 'PortfolioItem/Feature';
+    },
+    fetchPortfolioItemTypes: function(){
+        return this.fetchWsapiRecords({
+            model: 'TypeDefinition',
+            fetch: ['TypePath', 'Ordinal','Name'],
+            context: {workspace: this.getContext().getWorkspace()._ref},
+            filters: [{
+                property: 'Parent.Name',
+                operator: '=',
+                value: 'Portfolio Item'
+            },
+            {
+                property: 'Creatable',
+                operator: '=',
+                value: 'true'
+            }],
+            sorters: [{
+                property: 'Ordinal',
+                direction: 'ASC'
+            }]
+        });
     },
     fetchUserStories: function(timeboxScope){
         var timeboxRecord = timeboxScope && timeboxScope.getRecord(),
