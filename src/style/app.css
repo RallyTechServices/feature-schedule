@@ -1,0 +1,65 @@
+.app {
+}
+.tsinfolink {
+    position:absolute;
+    right:0px;
+    width: 14px;
+    height: 14px;
+    border-radius: 7px;
+    text-align: center;
+    color: white;
+    background: #C0C0C0;
+    border-style: solid;
+    border-width: 1px;
+    margin-top: 25px;
+    margin-right: 5px;
+    cursor: pointer;
+}
+
+.flag-late {
+    color: #EE1C25;
+    text-align: center;
+    font-size: 14px;
+}
+
+.flag-missing {
+    text-align: center;
+    font-size: 16px;
+    color: #FAD200;
+}
+
+.flag-missing .tooltiptext {
+    visibility: hidden;
+    background-color: black;
+    color: #fff;
+    text-align: left;
+    border-radius: 6px;
+    padding: 10px;
+    font-family: NotoSans, Helvetica, Arial;
+    /* Position the tooltip */
+    position: absolute;
+    z-index: 1;
+}
+
+.flag-late .tooltiptext {
+    visibility: hidden;
+    background-color: black;
+    width: 200px;
+    color: #fff;
+    text-align: left;
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 11px;
+    font-family: NotoSans, Helvetica, Arial;
+    /* Position the tooltip */
+    position: absolute;
+    z-index: 1;
+}
+
+.flag-late:hover .tooltiptext {
+    visibility: visible;
+}
+
+.flag-missing:hover .tooltiptext {
+    visibility: visible;
+}
