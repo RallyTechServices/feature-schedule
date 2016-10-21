@@ -126,15 +126,20 @@ Ext.define("feature-schedule", {
         });
     },
     getFeatureFilters: function(releaseStories){
-        var featureOids = [];
+        var featureOids = [],
+            featureHash = {};
         Ext.Array.each(releaseStories, function(s){
-            var oid = s.get('Feature') && s.get('Feature').ObjectID;
-            if (!Ext.Array.contains(featureOids, oid)){
-                featureOids.push(oid);
+            var oid = s.get('Feature') && s.get('Feature').ObjectID,
+                endDate = s.get('Iteration') && s.get('Iteration').EndDate;
+
+            if (!featureHash[oid] || featureHash[oid] < endDate){
+                featureHash[oid] = endDate;
             }
         });
 
-        var featureFilters = Ext.Array.map(featureOids, function(f){ return { property: 'ObjectID', value: f }});
+        this.featureSortByIterationDateHash = featureHash;
+
+        var featureFilters = Ext.Array.map(Ext.Object.getKeys(featureHash), function(f){ return { property: 'ObjectID', value: f }});
         featureFilters = Rally.data.wsapi.Filter.or(featureFilters);
         featureFilters = featureFilters.or(this.getContext().getTimeboxScope().getQueryFilter());
         this.logger.log('getFeatureFilters', featureFilters.toString());
@@ -154,13 +159,11 @@ Ext.define("feature-schedule", {
             if (s.get(featureName) && s.get('Iteration')){
                 var endDate = Rally.util.DateTime.fromIsoString(s.get('Iteration').EndDate),
                     featureOid = s.get(featureName).ObjectID;
-
                 if (!featureHash[featureOid]){
                     featureHash[featureOid] = {
                         latestEndDate: endDate
                     }
                 }
-
                 if (featureHash[featureOid].latestEndDate < endDate){
                     featureHash[featureOid].latestEndDate = endDate;
                 }
@@ -184,6 +187,16 @@ Ext.define("feature-schedule", {
             var oid = r.get('ObjectID');
             if (featureHash[oid]){
                 r.set('__latestIterationEndDate', featureHash[oid].latestEndDate);
+                if (featureHash[oid].latestEndDate && featureHash[oid].latestEndDate > r.get('PlannedEndDate')){
+                    r.set('__isLate', 2);
+                //} else {
+                //    console.log('s',featureHash[oid].latestEndDate, r.get('PlannedEndDate'));
+                //    if (!featureHash[oid].latestEndDate || !r.get('PlannedEndDate')){
+                //        r.set('__isLate',1);
+                //    }
+                }
+            //} else {
+            //    r.set('__isLate',1);
             }
         });
 
@@ -249,7 +262,7 @@ Ext.define("feature-schedule", {
             success: function(store) {
                 store.model.addField({name: '__latestIterationEndDate', type: 'auto', defaultValue: null});
                 store.model.addField({name: '__earliestMilestoneDate', type: 'auto', defaultValue: null});
-
+                store.model.addField({name: '__isLate', type: 'auto', defaultValue: null});
 
                 store.on('load', this.updateFeatures, this);
                 this.add({
@@ -260,6 +273,9 @@ Ext.define("feature-schedule", {
                     plugins: this.getGridPlugins(),
                     gridConfig: {
                         store: store,
+                        storeConfig: {
+                            filters: filters
+                        },
                         columnCfgs: this.getColumnConfigs(),
                         derivedColumns: this.getDerivedColumns()
                     },
@@ -328,7 +344,25 @@ Ext.define("feature-schedule", {
         }].concat(this.getDerivedColumns());
     },
     getDerivedColumns: function(){
+
+        var flagTpl = new Ext.XTemplate(
+            '<div>',
+            '<tpl if="__isLate==1">',
+                '<div class="flag-missing" ><div class="icon-flag"></div><span class="tooltiptext">Iteration dates or the planned end date are missing.</span></div>',
+            '</tpl>',
+            '<tpl if="__isLate==2">',
+            '<div class="flag-late"><div class="icon-flag"></div><span class="tooltiptext">Latest iteration date is after the planned end date for the feature</span></div>',
+            '</tpl>',
+            '</div>'
+        );
+
         return [{
+            dataIndex: '__isLate',
+            xtype: 'templatecolumn',
+            text: 'Late Flag',
+            tpl: flagTpl
+            // tpl: '<div class="{[__isLate > 0 ? "icon-flag" : "icon-ok" ]}" style="color:{[__isLate > 0 ? "red" : "green" ]};"></div>'
+        },{
             dataIndex: '__latestIterationEndDate',
             xtype: 'templatecolumn',
             text: 'Latest Iteration End Date',
