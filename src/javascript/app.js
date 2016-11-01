@@ -140,8 +140,12 @@ Ext.define("feature-schedule", {
         this.featureSortByIterationDateHash = featureHash;
 
         var featureFilters = Ext.Array.map(Ext.Object.getKeys(featureHash), function(f){ return { property: 'ObjectID', value: f }});
-        featureFilters = Rally.data.wsapi.Filter.or(featureFilters);
-        featureFilters = featureFilters.or(this.getContext().getTimeboxScope().getQueryFilter());
+        if (featureFilters && featureFilters.length > 0){
+            featureFilters = Rally.data.wsapi.Filter.or(featureFilters);
+            featureFilters = featureFilters.or(this.getContext().getTimeboxScope().getQueryFilter());
+        } else {
+            featureFilters = this.getContext().getTimeboxScope().getQueryFilter();
+        }
         this.logger.log('getFeatureFilters', featureFilters.toString());
 
         return featureFilters;
@@ -244,10 +248,10 @@ Ext.define("feature-schedule", {
     },
     buildFeatureStore: function(stories){
         this.logger.log('buildFeatureStore', stories);
-        if (!stories || stories.length === 0){
-            this.showAppNotification("No stories were found for the selected Release.");
-            return;
-        }
+        //if (!stories || stories.length === 0){
+        //    this.showAppNotification("No stories were found for the selected Release.");
+        //    return;
+        //}
         this.userStories = stories;
         this.removeAll();
         var filters = this.getFeatureFilters(stories);
@@ -257,7 +261,8 @@ Ext.define("feature-schedule", {
            // autoLoad: true,
             enableHierarchy: true,
             fetch: ['PlannedEndDate','Milestones','ObjectID','TargetDate'],
-            filters: filters
+            filters: filters,
+            pageSize: 1000
         }).then({
             success: function(store) {
                 store.model.addField({name: '__latestIterationEndDate', type: 'auto', defaultValue: null});
@@ -272,9 +277,13 @@ Ext.define("feature-schedule", {
                     toggleState: 'grid',
                     plugins: this.getGridPlugins(),
                     gridConfig: {
+                        pagingToolbarCfg: {
+                            pageSizes: [500, 1000, 2000]
+                        },
                         store: store,
                         storeConfig: {
-                            filters: filters
+                            filters: filters,
+                            pageSize: 1000
                         },
                         columnCfgs: this.getColumnConfigs(),
                         derivedColumns: this.getDerivedColumns()
@@ -360,19 +369,60 @@ Ext.define("feature-schedule", {
             dataIndex: '__isLate',
             xtype: 'templatecolumn',
             text: 'Late Flag',
-            tpl: flagTpl
+            tpl: flagTpl,
+            doSort: function(direction){
+                var ds = this.up('rallytreegrid').getStore();
+                ds.sort({
+                    property: '__isLate',
+                    direction: direction,
+                    sorterFn: function(v1, v2){
+                        var a = v1.get('__isLate') || 0,
+                            b = v2.get('__isLate') || 0,
+                            dateA = v1.get('__latestIterationEndDate'),
+                            dateB = v2.get('__latestIterationEndDate');
+
+                        return a > b ? 1 : (a < b ? -1 : (dateA > dateB ? 1 : (dateA < dateB ? -1 : 0)));
+                    }
+                });
+            }
             // tpl: '<div class="{[__isLate > 0 ? "icon-flag" : "icon-ok" ]}" style="color:{[__isLate > 0 ? "red" : "green" ]};"></div>'
         },{
             dataIndex: '__latestIterationEndDate',
             xtype: 'templatecolumn',
             text: 'Latest Iteration End Date',
             tpl: '<div style="text-align:right;">{__latestIterationEndDate}</div>',
+            doSort: function(direction){
+                var ds = this.up('rallytreegrid').getStore();
+                ds.sort({
+                    property: '__latestIterationEndDate',
+                    direction: direction,
+                    sorterFn: function(v1, v2){
+                        var  dateA = v1.get('__latestIterationEndDate'),
+                            dateB = v2.get('__latestIterationEndDate');
+
+                        return dateA > dateB ? 1 : (dateA < dateB ?  -1 : 0 );
+                    }
+                });
+            }
         },{
 
             dataIndex: '__earliestMilestoneDate',
             xtype: 'templatecolumn',
             text: 'Earliest Milestone Date',
             tpl: '<div style="text-align:right;">{__earliestMilestoneDate}</div>',
+            doSort: function(direction) {
+                var ds = this.up('rallytreegrid').getStore();
+                ds.sort({
+                    property: '__earliestMilestoneDate',
+                    direction: direction,
+                    sorterFn: function (v1, v2) {
+                        var dateA = v1.get('__earliestMilestoneDate'),
+                            dateB = v2.get('__earliestMilestoneDate');
+
+                        return dateA > dateB ? 1 : (dateA < dateB ? -1 : 0 );
+                    }
+                });
+            }
         }]
     },
     fetchWsapiRecords: function(config){
