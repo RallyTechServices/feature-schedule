@@ -58,11 +58,14 @@ Ext.define("feature-schedule", {
     updateView: function(timeboxScope){
         this.logger.log('updateView', timeboxScope);
 
+        this.removeAll();
+
+        this.setLoading(true);
         this.fetchUserStories(timeboxScope).then({
             success: this.buildFeatureStore,
             failure: this.showErrorNotification,
             scope: this
-        });
+        }).always(function(){ this.setLoading(false); }, this);
     },
     getFeatureName: function(){
         return this.getFeatureTypePath().replace('PortfolioItem/','');
@@ -253,7 +256,6 @@ Ext.define("feature-schedule", {
         //    return;
         //}
         this.userStories = stories;
-        this.removeAll();
         var filters = this.getFeatureFilters(stories);
 
         Ext.create('Rally.data.wsapi.TreeStoreBuilder').build({
@@ -262,6 +264,7 @@ Ext.define("feature-schedule", {
             enableHierarchy: true,
             fetch: ['PlannedEndDate','Milestones','ObjectID','TargetDate'],
             filters: filters,
+            enableRootLevelPostGet: true,
             pageSize: 1000
         }).then({
             success: function(store) {
@@ -283,7 +286,8 @@ Ext.define("feature-schedule", {
                         store: store,
                         storeConfig: {
                             filters: filters,
-                            pageSize: 1000
+                            pageSize: 1000,
+                            enableRootLevelPostGet: true
                         },
                         columnCfgs: this.getColumnConfigs(),
                         derivedColumns: this.getDerivedColumns()
