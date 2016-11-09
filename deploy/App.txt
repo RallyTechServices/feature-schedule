@@ -3,12 +3,12 @@
 <head>
     <title>Feature Schedule Report</title>
     <!--  (c) 2016 CA Technologies.  All Rights Reserved. -->
-    <!--  Build Date: Tue Nov 01 2016 13:05:29 GMT-0600 (MDT) -->
+    <!--  Build Date: Tue Nov 08 2016 20:03:25 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Tue Nov 01 2016 13:05:29 GMT-0600 (MDT)";
+        var APP_BUILD_DATE = "Tue Nov 08 2016 20:03:25 GMT-0700 (MST)";
         var BUILDER = "kcorkan";
-        var CHECKSUM = 14273581155;
+        var CHECKSUM = 14484756297;
     </script>
     
     <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
@@ -308,11 +308,14 @@ Ext.define("feature-schedule", {
     updateView: function(timeboxScope){
         this.logger.log('updateView', timeboxScope);
 
+        this.removeAll();
+
+        this.setLoading(true);
         this.fetchUserStories(timeboxScope).then({
             success: this.buildFeatureStore,
             failure: this.showErrorNotification,
             scope: this
-        });
+        }).always(function(){ this.setLoading(false); }, this);
     },
     getFeatureName: function(){
         return this.getFeatureTypePath().replace('PortfolioItem/','');
@@ -503,7 +506,6 @@ Ext.define("feature-schedule", {
         //    return;
         //}
         this.userStories = stories;
-        this.removeAll();
         var filters = this.getFeatureFilters(stories);
 
         Ext.create('Rally.data.wsapi.TreeStoreBuilder').build({
@@ -512,6 +514,7 @@ Ext.define("feature-schedule", {
             enableHierarchy: true,
             fetch: ['PlannedEndDate','Milestones','ObjectID','TargetDate'],
             filters: filters,
+            enableRootLevelPostGet: true,
             pageSize: 1000
         }).then({
             success: function(store) {
@@ -533,7 +536,8 @@ Ext.define("feature-schedule", {
                         store: store,
                         storeConfig: {
                             filters: filters,
-                            pageSize: 1000
+                            pageSize: 1000,
+                            enableRootLevelPostGet: true
                         },
                         columnCfgs: this.getColumnConfigs(),
                         derivedColumns: this.getDerivedColumns()
