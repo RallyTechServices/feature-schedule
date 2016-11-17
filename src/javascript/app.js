@@ -318,7 +318,9 @@ Ext.define("feature-schedule", {
                         derivedColumns: this.getDerivedColumns(),
                         listeners: {
                             staterestore: function(x,state){
-                                this.sorters = state.sorters[0];
+                                if (state.sorters && state.sorters.length > 0){
+                                    this.sorters = state.sorters[0];
+                                }
                             },
                             sortchange: function(ct, column, direction){
                                 this.sorters = {

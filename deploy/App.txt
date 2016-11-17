@@ -3,12 +3,12 @@
 <head>
     <title>Feature Schedule Report</title>
     <!--  (c) 2016 CA Technologies.  All Rights Reserved. -->
-    <!--  Build Date: Wed Nov 16 2016 19:57:51 GMT-0700 (MST) -->
+    <!--  Build Date: Thu Nov 17 2016 11:04:37 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Wed Nov 16 2016 19:57:51 GMT-0700 (MST)";
+        var APP_BUILD_DATE = "Thu Nov 17 2016 11:04:37 GMT-0700 (MST)";
         var BUILDER = "kcorkan";
-        var CHECKSUM = 19482768225;
+        var CHECKSUM = 19565884757;
     </script>
     
     <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
@@ -651,7 +651,9 @@ Ext.define("feature-schedule", {
                         derivedColumns: this.getDerivedColumns(),
                         listeners: {
                             staterestore: function(x,state){
-                                this.sorters = state.sorters[0];
+                                if (state.sorters && state.sorters.length > 0){
+                                    this.sorters = state.sorters[0];
+                                }
                             },
                             sortchange: function(ct, column, direction){
                                 this.sorters = {
