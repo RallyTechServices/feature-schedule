@@ -194,14 +194,12 @@ Ext.define("feature-schedule", {
 
             var oid = r.get('ObjectID');
             if (r.get('LeafStoryCount') > 0){
-                console.log('leafstorycount', r.get('FormattedID'), r.get('LeafStoryCount'));
+                //console.log('leafstorycount', r.get('FormattedID'), r.get('LeafStoryCount'));
 
                 if (featureHash[oid]){
-
                     if (featureHash[oid].latestEndDate && featureHash[oid].latestEndDate > r.get('PlannedEndDate')){
                         r.set('__isLate', 2);
                     } else {
-
                         if (!featureHash[oid].latestEndDate || !r.get('PlannedEndDate')){
                             r.set('__isLate',1);
                         }
@@ -210,7 +208,6 @@ Ext.define("feature-schedule", {
                     r.set('__isLate',1);
                 }
             }
-
         });
 
         if (milestoneOids.length > 0){
@@ -321,7 +318,6 @@ Ext.define("feature-schedule", {
                         derivedColumns: this.getDerivedColumns(),
                         listeners: {
                             staterestore: function(x,state){
-                                console.log('state', x, state)
                                 this.sorters = state.sorters[0];
                             },
                             sortchange: function(ct, column, direction){
