@@ -3,12 +3,12 @@
 <head>
     <title>Feature Schedule Report</title>
     <!--  (c) 2016 CA Technologies.  All Rights Reserved. -->
-    <!--  Build Date: Tue Nov 08 2016 20:03:25 GMT-0700 (MST) -->
+    <!--  Build Date: Wed Nov 16 2016 19:57:51 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Tue Nov 08 2016 20:03:25 GMT-0700 (MST)";
+        var APP_BUILD_DATE = "Wed Nov 16 2016 19:57:51 GMT-0700 (MST)";
         var BUILDER = "kcorkan";
-        var CHECKSUM = 14484756297;
+        var CHECKSUM = 19482768225;
     </script>
     
     <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
@@ -217,6 +217,26 @@ Ext.override(Rally.ui.grid.TreeGrid, {
         mergedColumns = mergedColumns.concat(this.config.derivedColumns);
         return mergedColumns;
     },
+
+    _isStatefulColumn: function(columnName) {
+        var unstatefulColumns = _.pluck(this.config.derivedColumns, 'dataIndex');
+        if (Ext.Array.contains(unstatefulColumns, columnName)){
+            return false;
+        }
+        if (!this.allColumnsStateful) {
+            columnName = columnName.toLowerCase();
+
+            if (this.store.enableHierarchy && columnName === this.treeColumnDataIndex.toLowerCase()) {
+                return false;
+            }
+
+            if (this.enableRanking && columnName === this.rankColumnDataIndex.toLowerCase()) {
+                return false;
+            }
+        }
+
+        return true;
+    },
     _getColumnConfigsBasedOnCurrentOrder: function(columnConfigs) {
         return _(this.headerCt.items.getRange()).map(function(column) {
             //override:  Added additional search for column.text
@@ -245,6 +265,69 @@ Ext.override(Rally.ui.grid.TreeGrid, {
             this.columnCfgs = columns;
         }
 
+    },
+    _getPersistableColumnConfig: function(column) {
+        var columnConfig = this._getColumnConfigFromColumn(column),
+            field = this._getModelField(columnConfig.dataIndex);
+        if (field && field.getUUID && field.getUUID()) {
+            columnConfig.dataIndex = field.getUUID();
+        }
+        return columnConfig;
+    },
+    _getPersistableSorter: function(sorterProperty) {
+        var field = this._getModelField(sorterProperty);
+        return (field && field.getUUID && field.getUUID()) || sorterProperty;
+    },
+
+    applyState: function(state) {
+        this.appliedState = state;
+        this.fireEvent('beforestaterestore', this, state);
+
+        if (state.columns) {
+            state.columns = _.reject(state.columns, function(col) {
+                return !this._getColumnName(col);
+            }, this);
+            // make sure flex is set correctly for column configs saved in a preference
+            _.each(state.columns, this._setColumnFlex, this);
+            state.columns = _.map(state.columns, this._transformUuidsToNames, this);
+            this._applyStatefulColumns(state.columns);
+        }
+
+        if (state.pagingToolbar) {
+            var store = this.getStore(),
+                pageSize = state.pagingToolbar.pageSize,
+                currentPage = state.pagingToolbar.currentPage;
+            if (this.pagingToolbarCfg) {
+                var maxPageSize = _.last(this.pagingToolbarCfg.pageSizes);
+                if (maxPageSize && maxPageSize < pageSize) {
+                    pageSize = maxPageSize;
+                    currentPage = 1;
+                }
+            }
+            store.pageSize = pageSize;
+            store.currentPage = currentPage;
+        }
+
+        if (state.sorters) {
+            _.each(state.sorters, this._transformUuidsToSorterProperty, this);
+            var sorters = _.transform(state.sorters, function (collection, sorterState) {
+                if(Rally.data.Ranker.isRankField(sorterState.property)) {
+                    sorterState.property = Rally.data.Ranker.getRankField(this.store.model);
+                }
+
+                collection.add(Ext.create('Ext.util.Sorter', {
+                    property: sorterState.property,
+                    direction: sorterState.direction
+                }));
+            }, Ext.create('Ext.util.MixedCollection'), this);
+            this.getStore().sorters = sorters;
+        }
+
+        if (state.expandedRowPersistence) {
+            this.expandedRowPersistenceState = state.expandedRowPersistence;
+        }
+
+        this.fireEvent('staterestore', this, state);
     }
 });
 
@@ -285,6 +368,7 @@ Ext.define("feature-schedule", {
         if (!timeboxScope){
             timeboxScope = this.getContext().getTimeboxScope();
         }
+        this.logger.log('timeboxScope', timeboxScope && timeboxScope.getRecord() && timeboxScope.getRecord().getData());
         if(timeboxScope && timeboxScope.getType() === 'release') {
             this.getContext().setTimeboxScope(timeboxScope);
             this.updateView(timeboxScope);
@@ -390,7 +474,7 @@ Ext.define("feature-schedule", {
             }
         });
 
-        this.featureSortByIterationDateHash = featureHash;
+ //     this.featureSortByIterationDateHash = featureHash;
 
         var featureFilters = Ext.Array.map(Ext.Object.getKeys(featureHash), function(f){ return { property: 'ObjectID', value: f }});
         if (featureFilters && featureFilters.length > 0){
@@ -442,18 +526,20 @@ Ext.define("feature-schedule", {
             }
 
             var oid = r.get('ObjectID');
-            if (featureHash[oid]){
-                r.set('__latestIterationEndDate', featureHash[oid].latestEndDate);
-                if (featureHash[oid].latestEndDate && featureHash[oid].latestEndDate > r.get('PlannedEndDate')){
-                    r.set('__isLate', 2);
-                //} else {
-                //    console.log('s',featureHash[oid].latestEndDate, r.get('PlannedEndDate'));
-                //    if (!featureHash[oid].latestEndDate || !r.get('PlannedEndDate')){
-                //        r.set('__isLate',1);
-                //    }
+            if (r.get('LeafStoryCount') > 0){
+                //console.log('leafstorycount', r.get('FormattedID'), r.get('LeafStoryCount'));
+
+                if (featureHash[oid]){
+                    if (featureHash[oid].latestEndDate && featureHash[oid].latestEndDate > r.get('PlannedEndDate')){
+                        r.set('__isLate', 2);
+                    } else {
+                        if (!featureHash[oid].latestEndDate || !r.get('PlannedEndDate')){
+                            r.set('__isLate',1);
+                        }
+                    }
+                } else {
+                    r.set('__isLate',1);
                 }
-            //} else {
-            //    r.set('__isLate',1);
             }
         });
 
@@ -498,6 +584,24 @@ Ext.define("feature-schedule", {
                 scope: this
             });
         }
+
+
+        if (this.sorters ){
+            var grid = this.down('rallygridboard').getGridOrBoard(),
+                sorter = this.sorters;
+
+                if (sorter.property === '__isLate' ||
+                    sorter.property === '__earliestMilestoneDate' ||
+                    sorter.property === '__latestMilestoneDate'){
+                    Ext.Array.each(grid.columns, function(col){
+                        if (col.dataIndex === sorter.property){
+                            col.doSort(sorter.direction);
+                            return false;
+                        }
+                    });
+                }
+        }
+
     },
     buildFeatureStore: function(stories){
         this.logger.log('buildFeatureStore', stories);
@@ -512,7 +616,7 @@ Ext.define("feature-schedule", {
             models: this.getModelNames(),
            // autoLoad: true,
             enableHierarchy: true,
-            fetch: ['PlannedEndDate','Milestones','ObjectID','TargetDate'],
+            fetch: ['PlannedEndDate','Milestones','ObjectID','TargetDate','LeafStoryCount'],
             filters: filters,
             enableRootLevelPostGet: true,
             pageSize: 1000
@@ -528,8 +632,12 @@ Ext.define("feature-schedule", {
                     context: this.getContext(),
                     modelNames: this.getModelNames(),
                     toggleState: 'grid',
+                    //stateful: true,
+                    //stateId: this.getContext().getScopedStateId('fsgridboard'),
                     plugins: this.getGridPlugins(),
                     gridConfig: {
+                        //stateful: true,
+                        //stateId: this.getContext().getScopedStateId('fsgrid'),
                         pagingToolbarCfg: {
                             pageSizes: [500, 1000, 2000]
                         },
@@ -540,7 +648,19 @@ Ext.define("feature-schedule", {
                             enableRootLevelPostGet: true
                         },
                         columnCfgs: this.getColumnConfigs(),
-                        derivedColumns: this.getDerivedColumns()
+                        derivedColumns: this.getDerivedColumns(),
+                        listeners: {
+                            staterestore: function(x,state){
+                                this.sorters = state.sorters[0];
+                            },
+                            sortchange: function(ct, column, direction){
+                                this.sorters = {
+                                    property: column.dataIndex,
+                                    direction: direction
+                                }
+                            },
+                            scope: this
+                        }
                     },
                     height: this.getHeight()
                 });
@@ -550,20 +670,17 @@ Ext.define("feature-schedule", {
     },
     getGridPlugins: function(){
         return [{
-            ptype:'rallygridboardaddnew'
-        },
-        {
             ptype: 'rallygridboardfieldpicker',
             headerPosition: 'left',
             modelNames: this.getModelNames(),
-            stateful: true,
+            //stateful: true,
             margin: '3 3 3 25',
-            stateId: this.getContext().getScopedStateId('feature-schedule-columns')
+            stateId: this.getContext().getScopedStateId('fsfp2')
         },{
             ptype: 'rallygridboardinlinefiltercontrol',
             inlineFilterButtonConfig: {
                 stateful: true,
-                stateId: this.getContext().getScopedStateId('feature-schedule-filters'),
+                stateId: this.getContext().getScopedStateId('fsfilter'),
                 modelNames: this.getModelNames(),
                 margin: 3,
                 inlineFilterPanelConfig: {
@@ -608,22 +725,18 @@ Ext.define("feature-schedule", {
     },
     getDerivedColumns: function(){
 
-        var flagTpl = new Ext.XTemplate(
-            '<div>',
-            '<tpl if="__isLate==1">',
-                '<div class="flag-missing" ><div class="icon-flag"></div><span class="tooltiptext">Iteration dates or the planned end date are missing.</span></div>',
-            '</tpl>',
-            '<tpl if="__isLate==2">',
-            '<div class="flag-late"><div class="icon-flag"></div><span class="tooltiptext">Latest iteration date is after the planned end date for the feature</span></div>',
-            '</tpl>',
-            '</div>'
-        );
-
         return [{
             dataIndex: '__isLate',
             xtype: 'templatecolumn',
             text: 'Late Flag',
-            tpl: flagTpl,
+            tpl:  '<div>' +
+            '<tpl if="__isLate==1">' +
+            '<div class="flag-missing" ><div class="icon-flag"></div><span class="tooltiptext">Iteration dates or the planned end date are missing.</span></div>' +
+            '</tpl>' +
+            '<tpl if="__isLate==2">' +
+            '<div class="flag-late"><div class="icon-flag"></div><span class="tooltiptext">Latest iteration date is after the planned end date for the feature</span></div>' +
+            '</tpl>' +
+            '</div>',
             doSort: function(direction){
                 var ds = this.up('rallytreegrid').getStore();
                 ds.sort({
@@ -639,7 +752,6 @@ Ext.define("feature-schedule", {
                     }
                 });
             }
-            // tpl: '<div class="{[__isLate > 0 ? "icon-flag" : "icon-ok" ]}" style="color:{[__isLate > 0 ? "red" : "green" ]};"></div>'
         },{
             dataIndex: '__latestIterationEndDate',
             xtype: 'templatecolumn',
