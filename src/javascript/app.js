@@ -35,6 +35,7 @@ Ext.define("feature-schedule", {
         if (!timeboxScope){
             timeboxScope = this.getContext().getTimeboxScope();
         }
+        this.logger.log('timeboxScope', timeboxScope && timeboxScope.getRecord() && timeboxScope.getRecord().getData());
         if(timeboxScope && timeboxScope.getType() === 'release') {
             this.getContext().setTimeboxScope(timeboxScope);
             this.updateView(timeboxScope);
@@ -140,7 +141,7 @@ Ext.define("feature-schedule", {
             }
         });
 
-        this.featureSortByIterationDateHash = featureHash;
+ //     this.featureSortByIterationDateHash = featureHash;
 
         var featureFilters = Ext.Array.map(Ext.Object.getKeys(featureHash), function(f){ return { property: 'ObjectID', value: f }});
         if (featureFilters && featureFilters.length > 0){
@@ -192,19 +193,24 @@ Ext.define("feature-schedule", {
             }
 
             var oid = r.get('ObjectID');
-            if (featureHash[oid]){
-                r.set('__latestIterationEndDate', featureHash[oid].latestEndDate);
-                if (featureHash[oid].latestEndDate && featureHash[oid].latestEndDate > r.get('PlannedEndDate')){
-                    r.set('__isLate', 2);
-                //} else {
-                //    console.log('s',featureHash[oid].latestEndDate, r.get('PlannedEndDate'));
-                //    if (!featureHash[oid].latestEndDate || !r.get('PlannedEndDate')){
-                //        r.set('__isLate',1);
-                //    }
+            if (r.get('LeafStoryCount') > 0){
+                console.log('leafstorycount', r.get('FormattedID'), r.get('LeafStoryCount'));
+
+                if (featureHash[oid]){
+
+                    if (featureHash[oid].latestEndDate && featureHash[oid].latestEndDate > r.get('PlannedEndDate')){
+                        r.set('__isLate', 2);
+                    } else {
+
+                        if (!featureHash[oid].latestEndDate || !r.get('PlannedEndDate')){
+                            r.set('__isLate',1);
+                        }
+                    }
+                } else {
+                    r.set('__isLate',1);
                 }
-            //} else {
-            //    r.set('__isLate',1);
             }
+
         });
 
         if (milestoneOids.length > 0){
@@ -248,6 +254,24 @@ Ext.define("feature-schedule", {
                 scope: this
             });
         }
+
+
+        if (this.sorters ){
+            var grid = this.down('rallygridboard').getGridOrBoard(),
+                sorter = this.sorters;
+
+                if (sorter.property === '__isLate' ||
+                    sorter.property === '__earliestMilestoneDate' ||
+                    sorter.property === '__latestMilestoneDate'){
+                    Ext.Array.each(grid.columns, function(col){
+                        if (col.dataIndex === sorter.property){
+                            col.doSort(sorter.direction);
+                            return false;
+                        }
+                    });
+                }
+        }
+
     },
     buildFeatureStore: function(stories){
         this.logger.log('buildFeatureStore', stories);
@@ -262,7 +286,7 @@ Ext.define("feature-schedule", {
             models: this.getModelNames(),
            // autoLoad: true,
             enableHierarchy: true,
-            fetch: ['PlannedEndDate','Milestones','ObjectID','TargetDate'],
+            fetch: ['PlannedEndDate','Milestones','ObjectID','TargetDate','LeafStoryCount'],
             filters: filters,
             enableRootLevelPostGet: true,
             pageSize: 1000
@@ -278,8 +302,12 @@ Ext.define("feature-schedule", {
                     context: this.getContext(),
                     modelNames: this.getModelNames(),
                     toggleState: 'grid',
+                    //stateful: true,
+                    //stateId: this.getContext().getScopedStateId('fsgridboard'),
                     plugins: this.getGridPlugins(),
                     gridConfig: {
+                        //stateful: true,
+                        //stateId: this.getContext().getScopedStateId('fsgrid'),
                         pagingToolbarCfg: {
                             pageSizes: [500, 1000, 2000]
                         },
@@ -290,7 +318,20 @@ Ext.define("feature-schedule", {
                             enableRootLevelPostGet: true
                         },
                         columnCfgs: this.getColumnConfigs(),
-                        derivedColumns: this.getDerivedColumns()
+                        derivedColumns: this.getDerivedColumns(),
+                        listeners: {
+                            staterestore: function(x,state){
+                                console.log('state', x, state)
+                                this.sorters = state.sorters[0];
+                            },
+                            sortchange: function(ct, column, direction){
+                                this.sorters = {
+                                    property: column.dataIndex,
+                                    direction: direction
+                                }
+                            },
+                            scope: this
+                        }
                     },
                     height: this.getHeight()
                 });
@@ -300,20 +341,17 @@ Ext.define("feature-schedule", {
     },
     getGridPlugins: function(){
         return [{
-            ptype:'rallygridboardaddnew'
-        },
-        {
             ptype: 'rallygridboardfieldpicker',
             headerPosition: 'left',
             modelNames: this.getModelNames(),
-            stateful: true,
+            //stateful: true,
             margin: '3 3 3 25',
-            stateId: this.getContext().getScopedStateId('feature-schedule-columns')
+            stateId: this.getContext().getScopedStateId('fsfp2')
         },{
             ptype: 'rallygridboardinlinefiltercontrol',
             inlineFilterButtonConfig: {
                 stateful: true,
-                stateId: this.getContext().getScopedStateId('feature-schedule-filters'),
+                stateId: this.getContext().getScopedStateId('fsfilter'),
                 modelNames: this.getModelNames(),
                 margin: 3,
                 inlineFilterPanelConfig: {
@@ -358,22 +396,18 @@ Ext.define("feature-schedule", {
     },
     getDerivedColumns: function(){
 
-        var flagTpl = new Ext.XTemplate(
-            '<div>',
-            '<tpl if="__isLate==1">',
-                '<div class="flag-missing" ><div class="icon-flag"></div><span class="tooltiptext">Iteration dates or the planned end date are missing.</span></div>',
-            '</tpl>',
-            '<tpl if="__isLate==2">',
-            '<div class="flag-late"><div class="icon-flag"></div><span class="tooltiptext">Latest iteration date is after the planned end date for the feature</span></div>',
-            '</tpl>',
-            '</div>'
-        );
-
         return [{
             dataIndex: '__isLate',
             xtype: 'templatecolumn',
             text: 'Late Flag',
-            tpl: flagTpl,
+            tpl:  '<div>' +
+            '<tpl if="__isLate==1">' +
+            '<div class="flag-missing" ><div class="icon-flag"></div><span class="tooltiptext">Iteration dates or the planned end date are missing.</span></div>' +
+            '</tpl>' +
+            '<tpl if="__isLate==2">' +
+            '<div class="flag-late"><div class="icon-flag"></div><span class="tooltiptext">Latest iteration date is after the planned end date for the feature</span></div>' +
+            '</tpl>' +
+            '</div>',
             doSort: function(direction){
                 var ds = this.up('rallytreegrid').getStore();
                 ds.sort({
@@ -389,7 +423,6 @@ Ext.define("feature-schedule", {
                     }
                 });
             }
-            // tpl: '<div class="{[__isLate > 0 ? "icon-flag" : "icon-ok" ]}" style="color:{[__isLate > 0 ? "red" : "green" ]};"></div>'
         },{
             dataIndex: '__latestIterationEndDate',
             xtype: 'templatecolumn',
