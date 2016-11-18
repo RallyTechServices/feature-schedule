@@ -3,12 +3,12 @@
 <head>
     <title>Feature Schedule Report</title>
     <!--  (c) 2016 CA Technologies.  All Rights Reserved. -->
-    <!--  Build Date: Thu Nov 17 2016 11:04:37 GMT-0700 (MST) -->
+    <!--  Build Date: Fri Nov 18 2016 11:35:58 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Thu Nov 17 2016 11:04:37 GMT-0700 (MST)";
+        var APP_BUILD_DATE = "Fri Nov 18 2016 11:35:58 GMT-0700 (MST)";
         var BUILDER = "kcorkan";
-        var CHECKSUM = 19565884757;
+        var CHECKSUM = 19548941145;
     </script>
     
     <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
@@ -527,8 +527,6 @@ Ext.define("feature-schedule", {
 
             var oid = r.get('ObjectID');
             if (r.get('LeafStoryCount') > 0){
-                //console.log('leafstorycount', r.get('FormattedID'), r.get('LeafStoryCount'));
-
                 if (featureHash[oid]){
                     if (featureHash[oid].latestEndDate && featureHash[oid].latestEndDate > r.get('PlannedEndDate')){
                         r.set('__isLate', 2);
@@ -537,6 +535,7 @@ Ext.define("feature-schedule", {
                             r.set('__isLate',1);
                         }
                     }
+                    r.set('__latestIterationEndDate', featureHash[oid].latestEndDate);
                 } else {
                     r.set('__isLate',1);
                 }

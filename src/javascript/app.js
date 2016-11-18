@@ -194,8 +194,6 @@ Ext.define("feature-schedule", {
 
             var oid = r.get('ObjectID');
             if (r.get('LeafStoryCount') > 0){
-                //console.log('leafstorycount', r.get('FormattedID'), r.get('LeafStoryCount'));
-
                 if (featureHash[oid]){
                     if (featureHash[oid].latestEndDate && featureHash[oid].latestEndDate > r.get('PlannedEndDate')){
                         r.set('__isLate', 2);
@@ -204,6 +202,7 @@ Ext.define("feature-schedule", {
                             r.set('__isLate',1);
                         }
                     }
+                    r.set('__latestIterationEndDate', featureHash[oid].latestEndDate);
                 } else {
                     r.set('__isLate',1);
                 }
