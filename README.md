@@ -14,7 +14,10 @@ If there is a story that belongs to the feature that is outside of the project s
 #####Earliest Milestone Target Date 
 For milestones associated with each of the features in the selected release (or features that have stories in the selected release), the earliest Target Date across all milestones for that feature.  
 
-Note:  Sorting for Late Flag, Latest Iteration End Date and Earliest Milestone Date are only within the page.  Page sizes are large and the expectation is that there aren't more than 1000 features associated with a release.  
+######Notes:  
+Sorting for Late Flag, Latest Iteration End Date and Earliest Milestone Date are only within the page.  Page sizes are large and the expectation is that there aren't more than 1000 features associated with a release.  
+Export will only export the current page of data 
+
 ## Development Notes
 
 ### First Load

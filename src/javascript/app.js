@@ -12,6 +12,11 @@ Ext.define("feature-schedule", {
         name : "feature-schedule"
     },
 
+    flagTooltips: {
+        missing: "At least one story is missing an iteration date or the planned end date is missing.",
+        late: "Latest iteration date is after the planned end date for the feature."
+    },
+
     launch: function() {
         if (!this.isTimeboxScoped()){
             this.showNoScopeMessage();
@@ -55,6 +60,64 @@ Ext.define("feature-schedule", {
         Rally.ui.notify.Notifier.showError({
             message: msg
         });
+    },
+    exportCurrentPage: function(){
+        var grid = this.down('rallygridboard') && this.down('rallygridboard').getGridOrBoard();
+        if (!grid){
+            this.showErrorNotification("No data to export");
+            return;
+        }
+
+        var store = grid.getStore(),
+            columns = grid.getColumnCfgs();
+
+        var root = store.getRootNode(),
+            csv = [],
+            headers = [],
+            flagTooltips = this.flagTooltips;
+
+        Ext.Array.each(columns, function(c){
+            if (c.dataIndex){
+                headers.push(c.text || c.dataIndex);
+            }
+        });
+        csv.push(headers.join(','));
+
+        Ext.Array.each(root.childNodes, function(r){
+            var row = [];
+            Ext.Array.each(columns, function(c){
+                if (c.dataIndex){
+                    var val = r.get(c.dataIndex);
+                    if (Ext.isObject(val)){
+                        if (val._tagsNameArray){
+                            var newVal = [];
+                            Ext.Array.each(val._tagsNameArray, function(t){
+                                newVal.push(t.Name);
+                            });
+                            val = newVal.join(',');
+                        } else {
+                            val = val._refObjectName;
+                        }
+                    }
+                    if (c.dataIndex === '__isLate'){
+                        if (val === 1){
+                            val = flagTooltips.missing;
+                        }
+                        if (val === 2){
+                            val = flagTooltips.late;
+                        }
+                    }
+                    row.push(val || "");
+                }
+            });
+            row = _.map(row, function(v){ return Ext.String.format("\"{0}\"", v && v.toString().replace(/"/g, "\"\"") || "");});
+            csv.push(row.join(","));
+        });
+
+        csv = csv.join("\r\n");
+        var fileName = Ext.String.format('feature-schedule-{0}.csv', Rally.util.DateTime.format(new Date(), 'Y-m-d-h-i-s'));
+        CA.agile.technicalservices.FileUtilities.saveCSVToFile(csv, fileName);
+
     },
     updateView: function(timeboxScope){
         this.logger.log('updateView', timeboxScope);
@@ -124,26 +187,23 @@ Ext.define("feature-schedule", {
 
         return this.fetchWsapiRecords({
             model: 'HierarchicalRequirement',
-            fetch: ['ObjectID','FormattedID',this.getFeatureName(),'Iteration','EndDate'],
+            fetch: ['ObjectID','FormattedID',this.getFeatureName(),'Iteration','EndDate','DirectChildrenCount'],
             filters: filters,
             limit: 'Infinity'
         });
     },
     getFeatureFilters: function(releaseStories){
-        var featureOids = [],
-            featureHash = {};
-        Ext.Array.each(releaseStories, function(s){
-            var oid = s.get('Feature') && s.get('Feature').ObjectID,
-                endDate = s.get('Iteration') && s.get('Iteration').EndDate;
+        var featureOids = [];
 
-            if (!featureHash[oid] || featureHash[oid] < endDate){
-                featureHash[oid] = endDate;
+        Ext.Array.each(releaseStories, function(s){
+            var oid = s.get('Feature') && s.get('Feature').ObjectID;
+
+            if (oid && !Ext.Array.contains(featureOids, oid)){
+                featureOids.push(oid);
             }
         });
 
- //     this.featureSortByIterationDateHash = featureHash;
-
-        var featureFilters = Ext.Array.map(Ext.Object.getKeys(featureHash), function(f){ return { property: 'ObjectID', value: f }});
+        var featureFilters = Ext.Array.map(featureOids, function(f){ return { property: 'ObjectID', value: f }});
         if (featureFilters && featureFilters.length > 0){
             featureFilters = Rally.data.wsapi.Filter.or(featureFilters);
             featureFilters = featureFilters.or(this.getContext().getTimeboxScope().getQueryFilter());
@@ -161,24 +221,33 @@ Ext.define("feature-schedule", {
         this.logger.log('updateFeatures', records, operation, this.userStories);
 
         var featureHash = {},
-            featureName = this.getFeatureName();
+            featureName = this.getFeatureName(),
+            missingIteration = [];
 
         Ext.Array.each(this.userStories, function(s){
             if (s.get(featureName) && s.get('Iteration')){
                 var endDate = Rally.util.DateTime.fromIsoString(s.get('Iteration').EndDate),
                     featureOid = s.get(featureName).ObjectID;
+
                 if (!featureHash[featureOid]){
                     featureHash[featureOid] = {
                         latestEndDate: endDate
                     }
                 }
+
                 if (featureHash[featureOid].latestEndDate < endDate){
                     featureHash[featureOid].latestEndDate = endDate;
                 }
             }
+
+            if (s.get(featureName) && !s.get('Iteration') && s.get('DirectChildrenCount') === 0){
+                missingIteration.push(s.get(featureName).ObjectID);
+            }
         });
         this.logger.log('featureHash', featureHash);
         var milestoneOids = [];
+
+        this.suspendEvents();
         Ext.Array.each(records, function(r){
            var milestones = r.get('Milestones');
             if (milestones && milestones.Count > 0){
@@ -198,7 +267,7 @@ Ext.define("feature-schedule", {
                     if (featureHash[oid].latestEndDate && featureHash[oid].latestEndDate > r.get('PlannedEndDate')){
                         r.set('__isLate', 2);
                     } else {
-                        if (!featureHash[oid].latestEndDate || !r.get('PlannedEndDate')){
+                        if (!featureHash[oid].latestEndDate || !r.get('PlannedEndDate') || Ext.Array.contains(missingIteration, oid)){
                             r.set('__isLate',1);
                         }
                     }
@@ -207,7 +276,9 @@ Ext.define("feature-schedule", {
                     r.set('__isLate',1);
                 }
             }
+
         });
+        this.resumeEvents();
 
         if (milestoneOids.length > 0){
             var filters = Ext.Array.map(milestoneOids, function(m){ return {
@@ -231,6 +302,7 @@ Ext.define("feature-schedule", {
                         milestoneHash[m.get("_ref")] = m.get('TargetDate') ? Rally.util.DateTime.fromIsoString(m.get('TargetDate')) : null;
                     });
 
+                    this.suspendEvents();
                     Ext.Array.each(records, function(f){
                         var featureMilestones = f.get('Milestones');
                         if (featureMilestones && featureMilestones.Count > 0){
@@ -245,14 +317,14 @@ Ext.define("feature-schedule", {
                             f.set('__earliestMilestoneDate', earliestMilestoneDate);
                         }
                     });
+                    this.resumeEvents();
                 },
                 failure: this.showErrorNotification,
                 scope: this
             });
         }
 
-
-        if (this.sorters ){
+        if (this.sorters){
             var grid = this.down('rallygridboard').getGridOrBoard(),
                 sorter = this.sorters;
 
@@ -285,6 +357,7 @@ Ext.define("feature-schedule", {
             fetch: ['PlannedEndDate','Milestones','ObjectID','TargetDate','LeafStoryCount'],
             filters: filters,
             enableRootLevelPostGet: true,
+            autoSync: false,
             pageSize: 1000
         }).then({
             success: function(store) {
@@ -301,6 +374,23 @@ Ext.define("feature-schedule", {
                     //stateful: true,
                     //stateId: this.getContext().getScopedStateId('fsgridboard'),
                     plugins: this.getGridPlugins(),
+                    listeners: {
+                        afterrender: function(ct){
+
+                                ct.getHeader().getLeft().add({
+                                    xtype: 'rallybutton',
+                                    iconCls: 'icon-flag',
+                                    cls: 'rly-small secondary',
+                                    margin: '3 3 0 25',
+                                    toolTipText: "Show only flagged items",
+                                    enableToggle: true,
+                                    toggleHandler: this.filterFlaggedItems,
+                                    scope: this
+                                });
+
+                        },
+                        scope: this
+                    },
                     gridConfig: {
                         //stateful: true,
                         //stateId: this.getContext().getScopedStateId('fsgrid'),
@@ -365,11 +455,8 @@ Ext.define("feature-schedule", {
             ptype: 'rallygridboardactionsmenu',
             menuItems: [
                 {
-                    text: 'Export...',
-                    handler: function() {
-                        window.location = Rally.ui.gridboard.Export.buildCsvExportUrl(
-                            this.down('rallygridboard').getGridOrBoard());
-                    },
+                    text: 'Export Current Grid Page...',
+                    handler: this.exportCurrentPage, handler: this.exportCurrentPage,
                     scope: this
                 }
             ],
@@ -399,10 +486,10 @@ Ext.define("feature-schedule", {
             text: 'Late Flag',
             tpl:  '<div>' +
             '<tpl if="__isLate==1">' +
-            '<div class="flag-missing" ><div class="icon-flag"></div><span class="tooltiptext">Iteration dates or the planned end date are missing.</span></div>' +
+            '<div class="flag-missing" ><div class="icon-flag"></div><span class="tooltiptext">' + this.flagTooltips.missing + '</span></div>' +
             '</tpl>' +
             '<tpl if="__isLate==2">' +
-            '<div class="flag-late"><div class="icon-flag"></div><span class="tooltiptext">Latest iteration date is after the planned end date for the feature</span></div>' +
+            '<div class="flag-late"><div class="icon-flag"></div><span class="tooltiptext">' + this.flagTooltips.late + '</span></div>' +
             '</tpl>' +
             '</div>',
             doSort: function(direction){
@@ -471,6 +558,46 @@ Ext.define("feature-schedule", {
             }
         });
         return deferred;
+    },
+    filterFlaggedItems: function(toggleBtn){
+        this.logger.log('filterFlaggedItems', toggleBtn);
+
+
+        var showAll = true;
+        if (!toggleBtn.hasCls('primary')) {
+            toggleBtn.addCls('primary');
+            toggleBtn.removeCls('secondary');
+            toggleBtn.setTooltip("Show All Items");
+            showAll = false;
+        } else {
+            toggleBtn.addCls('secondary');
+            toggleBtn.removeCls('primary');
+            toggleBtn.setTooltip("Show Late Flagged Items Only");
+        }
+
+        var grid = this.down('rallygridboard') && this.down('rallygridboard').getGridOrBoard();
+        if (!grid){
+            return;
+        }
+
+        var node = grid.getStore().getRootNode(),
+            toRemove = [];
+        if (!showAll){
+            node.eachChild(function(n){
+                if (n && n.get('__isLate') !== 2){
+                    toRemove.push(n);
+                }
+            });
+            Ext.Array.each(toRemove, function(n){
+                n.remove(false);
+            });
+            if (grid.down('rallytreepagingtoolbar')){
+                grid.down('rallytreepagingtoolbar')._reRender();
+            }
+        } else {
+            this.updateView(this.getContext().getTimeboxScope());
+        }
+
     },
     getOptions: function() {
         return [
