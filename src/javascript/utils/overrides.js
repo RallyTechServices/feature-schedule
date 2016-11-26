@@ -125,3 +125,72 @@ Ext.override(Rally.ui.grid.TreeGrid, {
         this.fireEvent('staterestore', this, state);
     }
 });
+
+Ext.override(Rally.ui.tree.PagingToolbar, {
+
+    _onSubsequentLoads : function(store, node, records, successful, options) {
+        var hasTopLevelRecord = _.any(records, function(record) {
+            var isChildRecord = record.get('depth') > 1;
+            return !isChildRecord;
+        });
+
+        if (hasTopLevelRecord) {
+            this._reRender();
+        }
+
+        this._recordMetricsEnd();
+    },
+    _reRender : function() {
+        if (this.rendered !== true) {
+            return;
+        }
+
+        this._cleanupAdditionalComponents();
+
+        this.renderData = this._getPageData();
+        console.log('thisrenderData', this.renderData);
+        this.renderTpl.overwrite(this.getTargetEl(), this.renderData);
+
+        this.applyRenderSelectors();
+        this._addPageSizeCombobox();
+        this._addButtons();
+
+        this.fireEvent('change', this, this.renderData);
+    },
+    _getPageData: function() {
+        var store = this.getStore();
+
+        if (!store) {
+            return {
+                total: 0,
+                currentPage: 0,
+                pageCount: 0,
+                pageSize : 0,
+                start: 0,
+                end: 0,
+                pageSizes: 0
+            };
+        }
+
+        //var totalCount = store.getTotalCount() || 0,
+        //    start = ((store.currentPage - 1) * store.pageSize) + 1;
+
+        //Get the visible nodes instead of the total count since we are doing some client side filtering
+        var totalCount = store.getRootNode().childNodes && store.getRootNode().childNodes.length || 0,
+            start = ((store.currentPage - 1) * store.pageSize) + 1;
+
+        if (totalCount === 0) {
+            start = 0;
+        }
+
+        return {
+            total: totalCount,
+            currentPage: store.currentPage,
+            pageCount: Math.ceil(totalCount / store.pageSize),
+            pageSize : store.pageSize,
+            start: start,
+            end: Math.min(store.currentPage * store.pageSize, totalCount),
+            pageSizes: this.getPageSizes()
+        };
+    }
+});
