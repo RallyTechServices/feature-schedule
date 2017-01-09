@@ -3,12 +3,12 @@
 <head>
     <title>Feature Schedule Report</title>
     <!--  (c) 2016 CA Technologies.  All Rights Reserved. -->
-    <!--  Build Date: Sat Nov 26 2016 14:02:08 GMT-0700 (MST) -->
+    <!--  Build Date: Mon Jan 09 2017 10:23:52 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sat Nov 26 2016 14:02:08 GMT-0700 (MST)";
+        var APP_BUILD_DATE = "Mon Jan 09 2017 10:23:52 GMT-0700 (MST)";
         var BUILDER = "kcorkan";
-        var CHECKSUM = 32094989867;
+        var CHECKSUM = 32493049668;
     </script>
     
     <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
@@ -774,6 +774,8 @@ Ext.define("feature-schedule", {
             });
             filters = Rally.data.wsapi.Filter.or(filters);
 
+            this.setLoading("Loading Milestone data...");
+
             this.fetchWsapiRecords({
                 model: 'Milestone',
                 fetch: ['ObjectID','FormattedID','TargetDate'],
@@ -807,7 +809,7 @@ Ext.define("feature-schedule", {
                 },
                 failure: this.showErrorNotification,
                 scope: this
-            });
+            }).always(function(){ this.setLoading(false);},this);
         }
 
         if (this.sorters){
@@ -836,6 +838,7 @@ Ext.define("feature-schedule", {
         this.userStories = stories;
         var filters = this.getFeatureFilters(stories);
 
+        this.setLoading(true);
         Ext.create('Rally.data.wsapi.TreeStoreBuilder').build({
             models: this.getModelNames(),
            // autoLoad: true,
@@ -910,7 +913,7 @@ Ext.define("feature-schedule", {
                 });
             },
             scope: this
-        });
+        }).always(function(){ this.setLoading(false); }, this);
     },
     getGridPlugins: function(){
         return [{
