@@ -288,6 +288,8 @@ Ext.define("feature-schedule", {
             });
             filters = Rally.data.wsapi.Filter.or(filters);
 
+            this.setLoading("Loading Milestone data...");
+
             this.fetchWsapiRecords({
                 model: 'Milestone',
                 fetch: ['ObjectID','FormattedID','TargetDate'],
@@ -321,7 +323,7 @@ Ext.define("feature-schedule", {
                 },
                 failure: this.showErrorNotification,
                 scope: this
-            });
+            }).always(function(){ this.setLoading(false);},this);
         }
 
         if (this.sorters){
@@ -350,6 +352,7 @@ Ext.define("feature-schedule", {
         this.userStories = stories;
         var filters = this.getFeatureFilters(stories);
 
+        this.setLoading(true);
         Ext.create('Rally.data.wsapi.TreeStoreBuilder').build({
             models: this.getModelNames(),
            // autoLoad: true,
@@ -424,7 +427,7 @@ Ext.define("feature-schedule", {
                 });
             },
             scope: this
-        });
+        }).always(function(){ this.setLoading(false); }, this);
     },
     getGridPlugins: function(){
         return [{
