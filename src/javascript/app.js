@@ -69,7 +69,9 @@ Ext.define("feature-schedule", {
         }
 
         var store = grid.getStore(),
-            columns = grid.getColumnCfgs();
+            columns = [{dataIndex: 'FormattedID', text: 'ID'}];
+
+        columns = columns.concat(grid.getColumnCfgs());
 
         var root = store.getRootNode(),
             csv = [],
@@ -77,7 +79,8 @@ Ext.define("feature-schedule", {
             flagTooltips = this.flagTooltips;
 
         Ext.Array.each(columns, function(c){
-            if (c.dataIndex){
+
+            if (c.dataIndex ){
                 headers.push(c.text || c.dataIndex);
             }
         });
@@ -87,6 +90,7 @@ Ext.define("feature-schedule", {
             var row = [];
             Ext.Array.each(columns, function(c){
                 if (c.dataIndex){
+                   
                     var val = r.get(c.dataIndex);
                     if (Ext.isObject(val)){
                         if (val._tagsNameArray){
