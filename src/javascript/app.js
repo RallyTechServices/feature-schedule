@@ -69,7 +69,7 @@ Ext.define("feature-schedule", {
         }
 
         var store = grid.getStore(),
-            columns = [{dataIndex: 'FormattedID', text: 'ID'}];
+            columns = [{dataIndex: 'FormattedID', text: 'FormattedID'}];
 
         columns = columns.concat(grid.getColumnCfgs());
 
@@ -90,7 +90,7 @@ Ext.define("feature-schedule", {
             var row = [];
             Ext.Array.each(columns, function(c){
                 if (c.dataIndex){
-                   
+
                     var val = r.get(c.dataIndex);
                     if (Ext.isObject(val)){
                         if (val._tagsNameArray){

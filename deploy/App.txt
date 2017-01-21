@@ -3,12 +3,12 @@
 <head>
     <title>Feature Schedule Report</title>
     <!--  (c) 2016 CA Technologies.  All Rights Reserved. -->
-    <!--  Build Date: Fri Jan 20 2017 15:08:31 GMT-0700 (MST) -->
+    <!--  Build Date: Fri Jan 20 2017 17:07:29 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Fri Jan 20 2017 15:08:31 GMT-0700 (MST)";
+        var APP_BUILD_DATE = "Fri Jan 20 2017 17:07:29 GMT-0700 (MST)";
         var BUILDER = "kcorkan";
-        var CHECKSUM = 32467099182;
+        var CHECKSUM = 32490262709;
     </script>
     
     <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
@@ -553,7 +553,7 @@ Ext.define("feature-schedule", {
         }
 
         var store = grid.getStore(),
-            columns = [{dataIndex: 'FormattedID', text: 'ID'}];
+            columns = [{dataIndex: 'FormattedID', text: 'FormattedID'}];
 
         columns = columns.concat(grid.getColumnCfgs());
 
@@ -574,7 +574,7 @@ Ext.define("feature-schedule", {
             var row = [];
             Ext.Array.each(columns, function(c){
                 if (c.dataIndex){
-                   
+
                     var val = r.get(c.dataIndex);
                     if (Ext.isObject(val)){
                         if (val._tagsNameArray){
